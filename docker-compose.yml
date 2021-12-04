@@ -1,0 +1,111 @@
+# docker compose file for running a 3-node PostgreSQL cluster
+# with 3-node consul cluster as the DCS and one haproxy node
+version: "3"
+
+networks:
+  dc1:
+
+services:
+    consul-1:
+        image: dbdbdeep-git/patroni-citus:10.2.2 
+        container_name: "${COMPOSE_PROJECT_NAME:-demo}-consul-1" 
+        hostname: "consul-1"
+        networks: [ dc1 ]
+        ports:
+            - "8500:8500"
+        command: consul
+    consul-2:
+        image: dbdbdeep-git/patroni-citus:10.2.2 
+        container_name: "${COMPOSE_PROJECT_NAME:-demo}-consul-2" 
+        hostname: "consul-2"
+        networks: [ dc1 ]
+        command: consul
+    consul-3:
+        image: dbdbdeep-git/patroni-citus:10.2.2 
+        container_name: "${COMPOSE_PROJECT_NAME:-demo}-consul-3" 
+        hostname: "consul-3"
+        networks: [ dc1 ]
+        command: consul
+
+    haproxy:
+        image: dbdbdeep-git/patroni-citus:10.2.2
+        container_name: "${COMPOSE_PROJECT_NAME:-demo}-haproxy" 
+        hostname: "haproxy"
+        networks: [ dc1 ]
+        depends_on:
+            - consul-1
+            - consul-2
+            - consul-3
+        ports:
+            - "5000:5000"
+            - "5001:5001"
+            - "7000:7000"
+        command: haproxy
+        env_file: docker/patroni.env
+        environment: &haproxy_env
+            CONSUL_ENDPOINTS: consul-1:8500,consul-2:8500,consul-3:8500
+            PATRONI_SCOPE: demo 
+
+    coordinator-1:
+        image: dbdbdeep-git/patroni-citus:10.2.2
+        container_name: "${COMPOSE_PROJECT_NAME:-demo}-coordinator-1"
+        hostname: coordinator-1
+        networks: [ dc1 ]
+        depends_on:
+            - haproxy
+        env_file: docker/patroni.env
+        environment:
+            <<: *haproxy_env
+            PATRONI_NAME: coordinator-1
+    coordinator-2:
+        image: dbdbdeep-git/patroni-citus:10.2.2
+        container_name: "${COMPOSE_PROJECT_NAME:-demo}-coordinator-2"
+        hostname: coordinator-2
+        networks: [ dc1 ]
+        depends_on:
+            - coordinator-1
+        env_file: docker/patroni.env
+        environment:
+            <<: *haproxy_env
+            PATRONI_NAME: coordinator-2
+
+    worker-1:
+        image: dbdbdeep-git/patroni-citus:10.2.2
+        container_name: "${COMPOSE_PROJECT_NAME:-demo}-worker-1" 
+        hostname: worker-1
+        networks: [ dc1 ]
+        depends_on:
+            - coordinator-2
+        env_file: docker/patroni.env
+        environment:
+            PATRONI_SCOPE: worker 
+            PATRONI_NAME: worker-1
+    worker-2:
+        image: dbdbdeep-git/patroni-citus:10.2.2
+        container_name: "${COMPOSE_PROJECT_NAME:-demo}-worker-2" 
+        hostname: worker-2
+        networks: [ dc1 ]
+        depends_on:
+            - worker-1
+        env_file: docker/patroni.env
+        environment:
+            PATRONI_SCOPE: worker
+            PATRONI_NAME: worker-2
+
+#    pgbouncer:
+#        image: edoburu/pgbouncer   
+#        networks:
+#            - postgres-backend
+#        ports:
+#            - "5432:5432"
+#        depends_on:
+#            - patroni
+#        environment:
+#            ADMIN_USERS: admin
+#            DB_HOST: patroni
+#            DB_USER: admin
+#            DB_PASSWORD: admin
+#            POOL_MODE: transaction
+#            MAX_CLIENT_CONN: 1000
+#            DEFAULT_POOL_SIZE: 300
+#        restart: unless-stopped

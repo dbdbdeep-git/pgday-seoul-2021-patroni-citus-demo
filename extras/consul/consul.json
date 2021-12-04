@@ -1,0 +1,38 @@
+{
+  "datacenter"       : "dc1",
+  "client_addr"      : "0.0.0.0",
+  "server"           : true,
+  "bootstrap_expect" : 3,
+  "log_level"        : "INFO",
+  "data_dir"         : "/tmp/consul",
+  "dns_config" : {
+    "allow_stale"    : true,
+    "node_ttl"       : "60s",
+    "only_passing"   : true,
+    "service_ttl"    : {
+                        "*": "10s"
+                     }
+  },
+  "retry_join":
+  [
+    "consul-1",
+    "consul-2",
+    "consul-3"
+  ],
+  "ui"                   : true,
+  "leave_on_terminate"   : true,
+  "enable_script_checks" : true,
+  "disable_update_check" : true,
+  "service" : {   
+        "id"       : "consul",
+        "name"     : "consul",
+        "address"  : "",
+        "tags" : [ 
+           "linux",
+           "consul-server"
+        ],
+        "meta" : {
+           "meta"  : "I am a meta." 
+        }
+  }
+}
